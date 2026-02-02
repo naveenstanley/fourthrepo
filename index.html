@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Micro Drift</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap");
+
+      :root {
+        --bg-1: #0f1b2d;
+        --bg-2: #1b2542;
+        --accent: #ffb300;
+        --accent-2: #61d4f3;
+        --track: #1f2a40;
+        --track-edge: #e8eef6;
+        --hud: #e8eef6;
+        --danger: #ff5b5b;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 20% 20%, #223354 0%, var(--bg-1) 45%, #0b1322 100%);
+        color: var(--hud);
+        font-family: "Space Grotesk", system-ui, -apple-system, sans-serif;
+      }
+
+      .shell {
+        width: min(92vw, 920px);
+        display: grid;
+        gap: 18px;
+      }
+
+      .header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .title {
+        font-size: clamp(1.6rem, 3vw, 2.4rem);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.9rem;
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .stage {
+        position: relative;
+        border-radius: 24px;
+        padding: 18px;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+        overflow: hidden;
+      }
+
+      .stage::before {
+        content: "";
+        position: absolute;
+        inset: -40% 30% 40% -10%;
+        background: radial-gradient(circle, rgba(97, 212, 243, 0.18), transparent 70%);
+        pointer-events: none;
+      }
+
+      canvas {
+        width: 100%;
+        height: auto;
+        display: block;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #151f33, #0f1728 60%, #0e1524);
+      }
+
+      .footer {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 0.95rem;
+        color: rgba(232, 238, 246, 0.8);
+      }
+
+      .controls strong {
+        color: var(--accent);
+      }
+
+      .button-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 10px 16px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #0d1424;
+        background: var(--accent);
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      button.secondary {
+        background: var(--accent-2);
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.25);
+      }
+
+      @media (max-width: 720px) {
+        .footer {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="header">
+        <div class="title">Micro Drift</div>
+        <div class="meta">
+          <div class="pill">Score: <span id="score">0</span></div>
+          <div class="pill">Best: <span id="best">0</span></div>
+          <div class="pill">Speed: <span id="speed">1.0</span>x</div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <canvas id="game" width="820" height="520" aria-label="Car racing game"></canvas>
+      </div>
+
+      <div class="footer">
+        <div class="controls">
+          Steer with <strong>← →</strong> or <strong>A/D</strong>. Tap <strong>Space</strong> to boost.
+        </div>
+        <div class="button-row">
+          <button id="restart">Restart</button>
+          <button class="secondary" id="pause">Pause</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+      const scoreEl = document.getElementById("score");
+      const bestEl = document.getElementById("best");
+      const speedEl = document.getElementById("speed");
+      const restartBtn = document.getElementById("restart");
+      const pauseBtn = document.getElementById("pause");
+
+      const state = {
+        running: true,
+        paused: false,
+        score: 0,
+        best: 0,
+        speed: 1,
+        time: 0,
+        laneWidth: 0,
+        roadLeft: 0,
+        roadRight: 0,
+        car: {
+          x: canvas.width / 2,
+          y: canvas.height - 90,
+          width: 44,
+          height: 70,
+          velocity: 0,
+          maxSpeed: 6.5,
+        },
+        obstacles: [],
+        keys: { left: false, right: false, boost: false },
+      };
+
+      function resizeRoad() {
+        const margin = canvas.width * 0.16;
+        state.roadLeft = margin;
+        state.roadRight = canvas.width - margin;
+        state.laneWidth = (state.roadRight - state.roadLeft) / 3;
+      }
+
+      resizeRoad();
+
+      function spawnObstacle() {
+        const lane = Math.floor(Math.random() * 3);
+        const width = 48;
+        const height = 70;
+        const x = state.roadLeft + lane * state.laneWidth + (state.laneWidth - width) / 2;
+        state.obstacles.push({
+          x,
+          y: -height - 20,
+          width,
+          height,
+          color: "#ff5b5b",
+        });
+      }
+
+      function drawTrack() {
+        ctx.fillStyle = "#0e1729";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#1f2a40";
+        ctx.fillRect(state.roadLeft, 0, state.roadRight - state.roadLeft, canvas.height);
+
+        ctx.strokeStyle = "#e8eef6";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(state.roadLeft, 0);
+        ctx.lineTo(state.roadLeft, canvas.height);
+        ctx.moveTo(state.roadRight, 0);
+        ctx.lineTo(state.roadRight, canvas.height);
+        ctx.stroke();
+
+        const dashHeight = 40;
+        const gap = 28;
+        ctx.strokeStyle = "rgba(232, 238, 246, 0.6)";
+        ctx.lineWidth = 3;
+        for (let lane = 1; lane <= 2; lane += 1) {
+          const x = state.roadLeft + lane * state.laneWidth;
+          for (let y = -dashHeight; y < canvas.height + dashHeight; y += dashHeight + gap) {
+            const offset = (state.time * state.speed * 120) % (dashHeight + gap);
+            ctx.beginPath();
+            ctx.moveTo(x, y + offset);
+            ctx.lineTo(x, y + dashHeight + offset);
+            ctx.stroke();
+          }
+        }
+      }
+
+      function drawCar() {
+        const { x, y, width, height } = state.car;
+        ctx.fillStyle = "#ffb300";
+        ctx.fillRect(x, y, width, height);
+
+        ctx.fillStyle = "#1b2542";
+        ctx.fillRect(x + 8, y + 12, width - 16, height - 30);
+        ctx.fillStyle = "#61d4f3";
+        ctx.fillRect(x + 12, y + 18, width - 24, 18);
+
+        ctx.fillStyle = "#0d1424";
+        ctx.fillRect(x - 6, y + 12, 6, 18);
+        ctx.fillRect(x + width, y + 12, 6, 18);
+        ctx.fillRect(x - 6, y + height - 22, 6, 18);
+        ctx.fillRect(x + width, y + height - 22, 6, 18);
+      }
+
+      function drawObstacles() {
+        state.obstacles.forEach((obs) => {
+          ctx.fillStyle = obs.color;
+          ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+          ctx.fillStyle = "rgba(0,0,0,0.25)";
+          ctx.fillRect(obs.x + 8, obs.y + 10, obs.width - 16, obs.height - 20);
+        });
+      }
+
+      function updateCar() {
+        const { car, keys } = state;
+        const steer = keys.right - keys.left;
+        const targetVelocity = steer * car.maxSpeed;
+        car.velocity += (targetVelocity - car.velocity) * 0.2;
+        car.x += car.velocity * state.speed;
+
+        const minX = state.roadLeft + 6;
+        const maxX = state.roadRight - car.width - 6;
+        car.x = Math.max(minX, Math.min(maxX, car.x));
+      }
+
+      function updateObstacles(delta) {
+        const fallSpeed = 260 * state.speed;
+        state.obstacles.forEach((obs) => {
+          obs.y += fallSpeed * delta;
+        });
+        state.obstacles = state.obstacles.filter((obs) => obs.y < canvas.height + 80);
+
+        if (state.time % 1.4 < delta) {
+          spawnObstacle();
+        }
+      }
+
+      function checkCollision() {
+        const car = state.car;
+        return state.obstacles.some((obs) => {
+          return (
+            car.x < obs.x + obs.width &&
+            car.x + car.width > obs.x &&
+            car.y < obs.y + obs.height &&
+            car.y + car.height > obs.y
+          );
+        });
+      }
+
+      function updateScore(delta) {
+        state.score += delta * 60 * state.speed;
+        if (state.score > state.best) {
+          state.best = state.score;
+        }
+      }
+
+      function updateSpeed() {
+        const boost = state.keys.boost ? 0.45 : 0;
+        state.speed = 1 + Math.min(state.score / 1800, 1.5) + boost;
+        speedEl.textContent = state.speed.toFixed(1);
+      }
+
+      function renderHud() {
+        scoreEl.textContent = Math.floor(state.score);
+        bestEl.textContent = Math.floor(state.best);
+      }
+
+      let lastTime = 0;
+      function loop(timestamp) {
+        if (!state.running) return;
+        if (state.paused) {
+          lastTime = timestamp;
+          requestAnimationFrame(loop);
+          return;
+        }
+        const delta = Math.min((timestamp - lastTime) / 1000, 0.05);
+        lastTime = timestamp;
+        state.time += delta;
+
+        updateSpeed();
+        updateCar();
+        updateObstacles(delta);
+        updateScore(delta);
+
+        drawTrack();
+        drawObstacles();
+        drawCar();
+        renderHud();
+
+        if (checkCollision()) {
+          state.running = false;
+          drawCrash();
+          return;
+        }
+
+        requestAnimationFrame(loop);
+      }
+
+      function drawCrash() {
+        ctx.fillStyle = "rgba(13, 20, 36, 0.72)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ff5b5b";
+        ctx.font = "700 38px 'Space Grotesk'";
+        ctx.textAlign = "center";
+        ctx.fillText("Crash!", canvas.width / 2, canvas.height / 2 - 10);
+        ctx.fillStyle = "#e8eef6";
+        ctx.font = "500 18px 'Space Grotesk'";
+        ctx.fillText("Hit restart to race again", canvas.width / 2, canvas.height / 2 + 24);
+      }
+
+      function resetGame() {
+        state.running = true;
+        state.paused = false;
+        state.score = 0;
+        state.speed = 1;
+        state.time = 0;
+        state.obstacles = [];
+        state.car.x = canvas.width / 2 - state.car.width / 2;
+        lastTime = 0;
+        requestAnimationFrame(loop);
+      }
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
+          state.keys.left = true;
+        }
+        if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") {
+          state.keys.right = true;
+        }
+        if (event.key === " ") {
+          state.keys.boost = true;
+        }
+      });
+
+      document.addEventListener("keyup", (event) => {
+        if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
+          state.keys.left = false;
+        }
+        if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") {
+          state.keys.right = false;
+        }
+        if (event.key === " ") {
+          state.keys.boost = false;
+        }
+      });
+
+      restartBtn.addEventListener("click", resetGame);
+      pauseBtn.addEventListener("click", () => {
+        state.paused = !state.paused;
+        pauseBtn.textContent = state.paused ? "Resume" : "Pause";
+      });
+
+      window.addEventListener("resize", () => {
+        resizeRoad();
+      });
+
+      requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>
