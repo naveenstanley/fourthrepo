@@ -1,0 +1,56 @@
+Pricing Strategy Report: Acute Emergency Communication Dashboard
+
+Intro
+This report summarizes the recommended pricing model and ROI framework for a payer-funded emergency communication dashboard that reduces acute care delays. It translates clinical impact into verified cost savings and ties price directly to measurable outcomes.
+
+Context
+- Product: Emergency communication dashboard for acute events (sepsis, stroke, major trauma)
+- Buyer: Payer
+- Pricing model: Percent of verified savings
+
+Value Metric
+Primary value driver: reduced adverse events / care delays
+ROI anchored to the cost of delays avoided.
+
+ROI Model
+Let:
+- N = annual cases
+- R = baseline delay rate
+- I = relative improvement
+- C = cost per delay
+
+Then:
+- Delays avoided = N x R x I
+- Annual savings = N x R x I x C
+
+Inputs and Savings
+- Sepsis: 18,000 cases, 22% delay, 30% improvement, EUR 9,500 cost
+  Savings: EUR 11.286M
+- Stroke: 12,500 cases, 18% delay, 25% improvement, EUR 14,000 cost
+  Savings: EUR 7.875M
+- Major trauma: 9,000 cases, 15% delay, 20% improvement, EUR 11,000 cost
+  Savings: EUR 2.970M
+
+Total Annual Savings
+EUR 22.131M
+
+Recommended Pricing
+- Model: 10-15% of verified savings
+- Price range:
+  - 10% -> EUR 2.21M per year
+  - 15% -> EUR 3.32M per year
+- Add cap to reduce buyer risk (e.g., EUR 3.0M per year)
+- Optional floor (e.g., EUR 500k per year) for commitment
+
+Pilot Structure
+- 90-day pilot
+- Measure pre/post delay rate vs baseline
+- Pricing options:
+  - Fixed fee (e.g., EUR 75k), or
+  - 5% of verified savings during pilot
+- Rollout contingent on achieving target reduction
+
+Why This Works
+- Aligns price with payer outcomes
+- De-risks adoption with measurable impact
+- Scales with impact while preserving buyer confidence
